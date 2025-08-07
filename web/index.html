@@ -6,7 +6,6 @@
 </head>
 <body>
 
-<!-- Получение заказа -->
 <h2>Получить заказ</h2>
 <form id="getForm">
     <input type="text" name="uid" placeholder="Order UID" required>
@@ -14,7 +13,6 @@
 </form>
 <pre id="result"></pre>
 
-<!-- Создание заказа -->
 <h2>Создать заказ</h2>
 <form id="postForm">
     <textarea name="json" rows="20" cols="80" required>{
@@ -58,7 +56,6 @@
 <pre id="postResult"></pre>
 
 <script>
-// Получение заказа
 document.getElementById('getForm').onsubmit = async function(e) {
     e.preventDefault();
     const uid = this.elements.uid.value;
@@ -76,12 +73,9 @@ document.getElementById('getForm').onsubmit = async function(e) {
     }
 };
 
-// Создание заказа
 document.getElementById('postForm').onsubmit = async function(e) {
     e.preventDefault();
     const json = this.elements.json.value;
-
-    console.log('📤 Отправляем тело:', json);
 
     try {
         const response = await fetch('http://localhost:8081/order/upload', {
@@ -90,7 +84,7 @@ document.getElementById('postForm').onsubmit = async function(e) {
                 'Content-Type': 'application/json'
             },
             body: json,
-            mode: 'cors'  // если HTML открыт напрямую
+            mode: 'cors'
         });
 
         const text = await response.text();

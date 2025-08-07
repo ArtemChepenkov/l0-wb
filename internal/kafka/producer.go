@@ -1,7 +1,6 @@
 package kafka
 
 import (
-	_ "fmt"
 	"log"
 	"github.com/Shopify/sarama"
 	data "l0-wb/internal/db"
@@ -20,25 +19,23 @@ func StartProducer(order data.Order, ch chan struct{}) {
 	brokers := []string{"kafka:9092"}
 	producer, err := sarama.NewSyncProducer(brokers, config)
 	if err != nil {
-		log.Printf("cannot create producer: %v\n", err)
-		panic("cannot create producer")
+		log.Fatalf("cannot create producer: %v\n", err)
 	}
 	defer producer.Close()
 	
 	messageBytes, err := json.Marshal(order);
-log.Printf("bbbbbbbbbbbbb\n")
+
 	message := &sarama.ProducerMessage{
 		Topic: topic,
 		Key:   sarama.StringEncoder("key"),
 		Value: sarama.ByteEncoder(messageBytes),
 	}
 	partition, offset, err := producer.SendMessage(message)
-	log.Printf("aaaaaaaaaaaaaaaaaaa\n")
+
 	if err != nil {
-		log.Printf("send error: %v\n", err)
-		panic("send error")
+		log.Fatalf("Send error: %v\n", err)
 	} else {
 		ch <- struct{}{}
-		log.Printf("✅ Sent to partition %d at offset %d\n", partition, offset)
+		log.Printf("Sent to partition %d at offset %d\n", partition, offset)
 	}
 }

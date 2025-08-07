@@ -19,8 +19,7 @@ func parseMessage(msg []byte) *data.Order {
 	var order data.Order
 	err := json.Unmarshal(msg, &order)
 	if err != nil {
-		log.Printf("Failed to parse message: %v", err)
-		panic("Failed to parse message")
+		log.Fatalf("Failed to parse message: %v", err)
 	}
 
 	return &order
@@ -29,8 +28,7 @@ func parseMessage(msg []byte) *data.Order {
 func saveOrder(order data.Order, db *sql.DB) {
 	err := data.LoadFullINfo(db, order)
 	if err != nil {
-		log.Printf("Failed to save to DB: %v", err)
-		panic("Failed to save to DB")
+		log.Fatalf("Failed to save to DB: %v", err)
 	}
 	cache.OrdersCache.Add(order.OrderUID, order)
 }
@@ -49,16 +47,14 @@ func StartConsumer(db *sql.DB) {
 		time.Sleep(time.Second)
 	}
 	if err != nil {
-		log.Printf("cannot create consumer: %v\n", err)
-		panic("cannot create consumer")
+		log.Fatalf("cannot create consumer: %v\n", err)
 	} 
 	defer consumer.Close()
 
 	partitionConsumer, err := consumer.ConsumePartition(topic, 0, sarama.OffsetNewest)
 
 	if err != nil {
-		log.Printf("cannot consume partition: %v\n", err)
-		panic("cannot consume")
+		log.Fatalf("cannot consume partition: %v\n", err)
 	}
 	
 	defer partitionConsumer.Close()
