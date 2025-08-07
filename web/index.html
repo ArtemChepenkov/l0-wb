@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Order API</title>
+</head>
+<body>
+
+<!-- Получение заказа -->
+<h2>Получить заказ</h2>
+<form id="getForm">
+    <input type="text" name="uid" placeholder="Order UID" required>
+    <button type="submit">Получить</button>
+</form>
+<pre id="result"></pre>
+
+<!-- Создание заказа -->
+<h2>Создать заказ</h2>
+<form id="postForm">
+    <textarea name="json" rows="20" cols="80" required>{
+  "order_uid": "test123",
+  "track_number": "WBILMTESTTRACK",
+  "entry": "WBIL",
+  "locale": "en",
+  "internal_signature": "",
+  "customer_id": "cust123",
+  "delivery_service": "DHL",
+  "shardkey": "9",
+  "sm_id": 99,
+  "date_created": "2021-11-26T06:22:19Z",
+  "oof_shard": "1",
+  "delivery": {
+    "name": "Test Testov",
+    "phone": "+9720000000",
+    "zip": "2639809",
+    "city": "Kiryat Mozkin",
+    "address": "Ploshad Mira 15",
+    "region": "Kraiot",
+    "email": "test@gmail.com"
+  },
+  "payment": {
+    "transaction": "b563feb7b2b84b6test",
+    "currency": "USD",
+    "provider": "wbpay",
+    "amount": 1817
+  },
+  "items": [
+    {
+      "chrt_id": 9934930,
+      "track_number": "WBILMTESTTRACK",
+      "price": 453,
+      "name": "Mascaras"
+    }
+  ]
+}</textarea><br>
+    <button type="submit">Отправить</button>
+</form>
+<pre id="postResult"></pre>
+
+<script>
+// Получение заказа
+document.getElementById('getForm').onsubmit = async function(e) {
+    e.preventDefault();
+    const uid = this.elements.uid.value;
+    try {
+        const response = await fetch(`http://localhost:8081/order/${uid}`);
+        const text = await response.text();
+        try {
+            const json = JSON.parse(text);
+            document.getElementById('result').textContent = JSON.stringify(json, null, 2);
+        } catch {
+            document.getElementById('result').textContent = text;
+        }
+    } catch (err) {
+        document.getElementById('result').textContent = 'Ошибка: ' + err.message;
+    }
+};
+
+// Создание заказа
+document.getElementById('postForm').onsubmit = async function(e) {
+    e.preventDefault();
+    const json = this.elements.json.value;
+
+    console.log('📤 Отправляем тело:', json);
+
+    try {
+        const response = await fetch('http://localhost:8081/order/upload', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: json,
+            mode: 'cors'  // если HTML открыт напрямую
+        });
+
+        const text = await response.text();
+        document.getElementById('postResult').textContent = 'Ответ сервера: ' + text;
+    } catch (err) {
+        document.getElementById('postResult').textContent = 'Ошибка: ' + err.message;
+    }
+};
+</script>
+
+</body>
+</html>
