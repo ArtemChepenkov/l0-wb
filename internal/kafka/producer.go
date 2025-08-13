@@ -1,41 +1,40 @@
 package kafka
 
 import (
-	"log"
-	"github.com/Shopify/sarama"
-	data "l0-wb/internal/db"
 	"encoding/json"
+	_ "log"
+
+	sarama "github.com/IBM/sarama"
+	"l0-wb/internal/model"
 )
 
-const (
-	topic = "upload-order-topic"
-)
-
-func StartProducer(order data.Order, ch chan struct{}) {
-	config := sarama.NewConfig()
-	config.Producer.Return.Successes = true
-	config.Producer.Retry.Max = 5
-	config.Producer.RequiredAcks = sarama.WaitForAll
-	brokers := []string{"kafka:9092"}
-	producer, err := sarama.NewSyncProducer(brokers, config)
-	if err != nil {
-		log.Fatalf("cannot create producer: %v\n", err)
-	}
-	defer producer.Close()
-	
-	messageBytes, err := json.Marshal(order);
-
-	message := &sarama.ProducerMessage{
-		Topic: topic,
-		Key:   sarama.StringEncoder("key"),
-		Value: sarama.ByteEncoder(messageBytes),
-	}
-	partition, offset, err := producer.SendMessage(message)
-
-	if err != nil {
-		log.Fatalf("Send error: %v\n", err)
-	} else {
-		ch <- struct{}{}
-		log.Printf("Sent to partition %d at offset %d\n", partition, offset)
-	}
+type SyncProducer struct {
+	prod sarama.SyncProducer
 }
+
+func NewProducer(brokers []string) (*SyncProducer, error) {
+	cfg := sarama.NewConfig()
+	cfg.Producer.Return.Successes = true
+	cfg.Producer.RequiredAcks = sarama.WaitForAll
+	p, err := sarama.NewSyncProducer(brokers, cfg)
+	if err != nil {
+		return nil, err
+	}
+	return &SyncProducer{prod: p}, nil
+}
+
+func (p *SyncProducer) Send(o model.Order) error {
+	b, err := json.Marshal(o)
+	if err != nil {
+		return err
+	}
+	msg := &sarama.ProducerMessage{
+		Topic: "upload-order-topic",
+		Key:   sarama.StringEncoder(o.OrderUID),
+		Value: sarama.ByteEncoder(b),
+	}
+	_, _, err = p.prod.SendMessage(msg)
+	return err
+}
+
+func (p *SyncProducer) Close() error { return p.prod.Close() }

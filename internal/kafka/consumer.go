@@ -1,68 +1,73 @@
 package kafka
 
 import (
+	"context"
 	"encoding/json"
-	"github.com/Shopify/sarama"
-	"time"
-	"l0-wb/internal/cache"
-	"database/sql"
 	"log"
-	"fmt"
-	data "l0-wb/internal/db"
+	"time"
+	"database/sql"
+
+	sarama "github.com/IBM/sarama"
+	"l0-wb/internal/cache"
+	data "l0-wb/internal/model"
+	"l0-wb/internal/repo"
 )
 
-const (
-	startTryes = 100
-)
-
-func parseMessage(msg []byte) *data.Order {
-	var order data.Order
-	err := json.Unmarshal(msg, &order)
-	if err != nil {
-		log.Fatalf("Failed to parse message: %v", err)
-	}
-
-	return &order
+type Consumer struct {
+	brokers []string
+	topic   string
+	dbConn  *sql.DB
 }
 
-func saveOrder(order data.Order, db *sql.DB) {
-	err := data.LoadFullINfo(db, order)
-	if err != nil {
-		log.Fatalf("Failed to save to DB: %v", err)
-	}
-	cache.OrdersCache.Add(order.OrderUID, order)
+func NewConsumer(brokers []string, topic string, dbConn *sql.DB) *Consumer {
+	return &Consumer{brokers: brokers, topic: topic, dbConn: dbConn}
 }
 
-func StartConsumer(db *sql.DB) {
-	brokers := []string{"kafka:9092"}
-	var err error
+func (c *Consumer) Run(ctx context.Context) {
 	var consumer sarama.Consumer
-	for i := 0; i < startTryes; i++ {
-		consumer, err = sarama.NewConsumer(brokers, nil)
+	var err error
+	for i := 0; i < 60; i++ {
+		consumer, err = sarama.NewConsumer(c.brokers, nil)
 		if err == nil {
-			log.Println("consumer started")
 			break
 		}
 		log.Println("Retry consumer start")
 		time.Sleep(time.Second)
 	}
 	if err != nil {
-		log.Fatalf("cannot create consumer: %v\n", err)
-	} 
-	defer consumer.Close()
-
-	partitionConsumer, err := consumer.ConsumePartition(topic, 0, sarama.OffsetNewest)
-
-	if err != nil {
-		log.Fatalf("cannot consume partition: %v\n", err)
+		log.Printf("cannot create consumer: %v\n", err)
+		return
 	}
-	
-	defer partitionConsumer.Close()
+	defer func() { _ = consumer.Close() }()
+
+	partitionConsumer, err := consumer.ConsumePartition(c.topic, 0, sarama.OffsetNewest)
+	if err != nil {
+		log.Printf("cannot consume partition: %v\n", err)
+		return
+	}
+	defer func() { _ = partitionConsumer.Close() }()
 
 	for {
-		msg := <-partitionConsumer.Messages()
-		fmt.Printf("📨Received message: %s (offset %d)\n", string(msg.Value), msg.Offset)
-		curOrder := parseMessage(msg.Value)
-		saveOrder(*curOrder, db)
+		select {
+		case <-ctx.Done():
+			log.Println("consumer: ctx done, stopping")
+			return
+		case msg, ok := <-partitionConsumer.Messages():
+			if !ok {
+				log.Println("consumer: messages closed")
+				return
+			}
+			log.Printf("Received: %s (offset %d)\n", string(msg.Value), msg.Offset)
+			var ord data.Order
+			if err := json.Unmarshal(msg.Value, &ord); err != nil {
+				log.Printf("invalid json: %v", err)
+				continue
+			}
+			if err := repo.NewPostgresRepo(c.dbConn).SaveOrder(ord); err != nil {
+				log.Printf("save order err: %v", err)
+				continue
+			}
+			cache.Self().Set(ord.OrderUID, ord)
+		}
 	}
 }
